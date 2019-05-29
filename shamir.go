@@ -2,8 +2,9 @@ package shamirssgo
 
 import (
 	"crypto/rand"
-	"errors"
 	"math/big"
+
+	"github.com/pkg/errors"
 )
 
 const PrimeCertainty = 128
@@ -69,9 +70,43 @@ func (ss *ShamirSecret) Shares(index int) (share *big.Int, err error) {
 }
 
 func ReconstructSecret(sharesMap map[int]*big.Int, modulus *big.Int) (secret *big.Int, err error) {
+	secret = big.NewInt(0)
+	keySet := make(map[int]bool, len(sharesMap))
+	for k := range sharesMap {
+		keySet[k] = true
+	}
+	for k, v := range sharesMap {
+		langrangeCoeff, err := langrangeCoeff(k, keySet, modulus)
+		if err != nil {
+			err = errors.Wrap(err, "fail getting lagrange coefficient in index "+string(k))
+		}
+		share := v
 
+		lagrangeCoeffMult := new(big.Int)
+		lagrangeCoeffMult.Mul(langrangeCoeff, share).Mod(lagrangeCoeffMult, modulus)
+		secret.Add(secret, lagrangeCoeffMult).Mod(secret, modulus)
+	}
+	return
 }
 
-func langrangeCoeff(index int, setIndices map[int]bool, modulus *big.Int) (coeff *big.Int, err error) {
+func langrangeCoeff(i int, setIndices map[int]bool, modulus *big.Int) (coeff *big.Int, err error) {
+	coeff = big.NewInt(1)
+	for t := range setIndices {
+		if i == t {
+			continue
+		}
+		numerator := big.NewInt(0)
+		numerator.Sub(numerator, big.NewInt(int64(t))).Mod(numerator, modulus)
 
+		denumerator := big.NewInt(int64(i - t))
+		denumerator.Mod(denumerator, modulus)
+
+		currVal := new(big.Int)
+		denumeratorInverse := new(big.Int)
+		denumeratorInverse.ModInverse(denumerator, modulus)
+		currVal.Mul(numerator, denumeratorInverse)
+
+		coeff.Mul(coeff, currVal).Mod(coeff, modulus)
+	}
+	return
 }
