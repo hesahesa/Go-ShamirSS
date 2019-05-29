@@ -1,3 +1,18 @@
+/*Package shamirssgo is a Shamir's Secret Sharing implementation in Go
+ * Copyright (C) 2019  Prahesa Kusuma Setia (prahesa at yahoo dot com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.*/
 package shamirssgo
 
 import (
@@ -7,8 +22,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-const PrimeCertainty = 128
+const primeCertainty = 128
 
+// ShamirSecret is a type struct of the package
 type ShamirSecret struct {
 	secret            *big.Int
 	threshold         int
@@ -16,8 +32,9 @@ type ShamirSecret struct {
 	reconstructVector []*big.Int
 }
 
+// New initialize a pointer of ShamirSecret based on the given parameters
 func New(secret *big.Int, threshold int, modulus *big.Int) *ShamirSecret {
-	if !modulus.ProbablyPrime(PrimeCertainty) {
+	if !modulus.ProbablyPrime(primeCertainty) {
 		panic("modulus fails prime test by ProbablePrime(), try to use prime (or prime enough)")
 	}
 
@@ -29,22 +46,25 @@ func New(secret *big.Int, threshold int, modulus *big.Int) *ShamirSecret {
 		nil,
 	).Sub(max, big.NewInt(1))
 
-	reconstructVector := make([]*big.Int, threshold)
-	reconstructVector[0] = big.NewInt(1)
+	rv := make([]*big.Int, threshold) // number of coefficient = number of polynomial degree
+	rv[0] = big.NewInt(1)             // first coefficient is for the secret
 
-	for i := 1; i < threshold-1; i++ {
+	// randomly generate polynomial P(x) by randomly generate reconstruction vector
+	for i := 1; i <= threshold-1; i++ {
 		randNum, _ := rand.Int(rand.Reader, max)
-		reconstructVector[i] = randNum.Mod(randNum, modulus)
+		rv[i] = randNum.Mod(randNum, modulus)
 	}
 
 	return &ShamirSecret{
 		secret:            secret.Mod(secret, modulus),
 		threshold:         threshold,
 		modulus:           modulus,
-		reconstructVector: reconstructVector,
+		reconstructVector: rv,
 	}
 }
 
+// Shares computes a share based on the index given, index
+// need to be greater than 0
 func (ss *ShamirSecret) Shares(index int) (share *big.Int, err error) {
 	if index <= 0 {
 		err = errors.New("shares index need to be greater or equal than 0")
@@ -64,11 +84,13 @@ func (ss *ShamirSecret) Shares(index int) (share *big.Int, err error) {
 			share.Add(share, recVerMul)
 			share.Mod(share, ss.modulus)
 		}
-
 		return
 	}
 }
 
+// ReconstructSecret is used to reconstruct the original secret based on the shares given
+// in the sharesMap parameter. The number of shares given need to be greater than or equal to
+// the threshold, otherwise the result of this function is undefined
 func ReconstructSecret(sharesMap map[int]*big.Int, modulus *big.Int) (secret *big.Int, err error) {
 	secret = big.NewInt(0)
 	keySet := make(map[int]bool, len(sharesMap))
